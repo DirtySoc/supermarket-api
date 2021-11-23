@@ -16,6 +16,7 @@ func (h *produceHandlers) produce(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.String(), "/")
 	switch r.Method {
 	case http.MethodGet:
+		// TODO: refactor and bugfix this
 		switch len(parts) {
 		case 2:
 			h.get(w, r)
@@ -42,7 +43,6 @@ func (h *produceHandlers) produce(w http.ResponseWriter, r *http.Request) {
 func (h *produceHandlers) get(w http.ResponseWriter, r *http.Request) {
 	// Convert map to array of produce items.
 	produce := make([]Produce, len(h.store))
-
 	h.mu.Lock()
 	i := 0
 	for _, item := range h.store {
@@ -51,6 +51,7 @@ func (h *produceHandlers) get(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Unlock()
 
+	// Convert to JSON bytes and send as response body
 	jsonBytes, err := json.Marshal(produce)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -118,19 +119,36 @@ func (h *produceHandlers) post(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	for _, item := range newProduce {
 		_, exists := h.store[item.ProduceCode]
+		h.store[item.ProduceCode] = item
+		w.WriteHeader(http.StatusCreated)
 		if exists {
+			// TODO: update when warning is being written out. This causes 200 to be returned early.
 			fmt.Fprintf(w, "Warning: Duplicate ProduceCodes detected: Item %s already exists.", item.ProduceCode)
 		}
-		h.store[item.ProduceCode] = item
 	}
 	defer h.mu.Unlock()
 
-	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *produceHandlers) delete(w http.ResponseWriter, r *http.Request) {
-	// TODO
-	w.WriteHeader(http.StatusNotImplemented)
+	parts := strings.Split(r.URL.String(), "/")
+
+	if len(parts) != 3 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	_, exists := h.store[parts[2]]
+	if !exists {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	h.mu.Lock()
+	delete(h.store, parts[2])
+	h.mu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {

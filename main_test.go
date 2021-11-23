@@ -75,8 +75,8 @@ func TestAddProduce(t *testing.T) {
 		produceHandler.post(response, request)
 
 		got := response.Code
-		if got != http.StatusOK {
-			t.Errorf("got %d, want %d", got, http.StatusOK)
+		if got != http.StatusCreated { // TODO: is this really what we want here?
+			t.Errorf("got %d, want %d", got, http.StatusCreated)
 		}
 	})
 
@@ -109,14 +109,29 @@ func TestAddProduce(t *testing.T) {
 }
 
 func TestDeleteProduce(t *testing.T) {
+	produceHandler := newProduceHandlers()
+
 	t.Run("Delete existing produce", func(t *testing.T) {
-		// TODO
+		request, _ := http.NewRequest(http.MethodDelete, "/produce/A12T-4GH7-QPL9-3N4M", nil)
+		response := httptest.NewRecorder()
+
+		produceHandler.delete(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Errorf("got %d, want %d", response.Code, http.StatusOK)
+		}
 	})
 
 	t.Run("Delete non-existant produce", func(t *testing.T) {
-		// TODO
-	})
+		request, _ := http.NewRequest(http.MethodDelete, "/produce/non-existant-produce", nil)
+		response := httptest.NewRecorder()
 
+		produceHandler.delete(response, request)
+
+		if response.Code != http.StatusNotFound {
+			t.Errorf("got %d, want %d", response.Code, http.StatusNotFound)
+		}
+	})
 }
 
 // Check and ensure that all elements exists in another slice and

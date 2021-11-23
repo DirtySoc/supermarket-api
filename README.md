@@ -1,8 +1,18 @@
 # supermarket-api
 
-The supermarket-api is a Golang application that responds to HTTP requests for updating produce information in a backend database. The application is meant to deployed in docker.
+The supermarket-api is a Golang application that responds to HTTP requests for updating produce information in a backend database. The application is meant to be deployed in docker.
+
+## Deploy Instructions
+
+To quickly run locally, you can use:
+
+```bash
+docker run -d -p 6620:6620 dirtysoc/supermarket-api
+```
 
 ## Data Types
+
+**Produce**:
 
 ```json
 {
@@ -15,10 +25,10 @@ The supermarket-api is a Golang application that responds to HTTP requests for u
 ## Endpoints
 
 - [x] `GET /produce` returns all produce as JSON
-- [ ] `GET /produce/{id}` returns details of a specific produce as JSON
+- [x] `GET /produce/{id}` returns details of a specific produce as JSON
 - [x] `POST /produce` add a produce item to the database*
 - [x] `POST /produce` add multiple produce items to the database
-- [ ] `DELETE /produce/{id}` removed produce from the database by produceCode
+- [ ] `DELETE /produce/{id}` removes produce from the database by produceCode
 
 \* Note that all JSON body data must be a JSON array. For example, adding a single new produce item requires that the JSON body of the POST request be a JSON array with a single object in it.
 
