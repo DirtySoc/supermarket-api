@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +21,6 @@ func TestGetProduce(t *testing.T) {
 	t.Run("GET all produce", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/produce", nil)
 		response := httptest.NewRecorder()
-
 		produceHandler.get(response, request)
 
 		var got []Produce
@@ -30,17 +30,48 @@ func TestGetProduce(t *testing.T) {
 			t.Errorf("got %+v, want %+v", got, initProduceDB)
 		}
 	})
+
+	t.Run("GET produce by ID", func(t *testing.T) {
+		// TODO check for 200
+	})
+
+	t.Run("GET produce with fake ID", func(t *testing.T) {
+		// TODO check for 404
+	})
 }
 
 func TestAddProduce(t *testing.T) {
 	produceHandler := newProduceHandlers()
 
-	t.Run("Add new produce", func(t *testing.T) {
-		// TODO: add body of new produce & check it exists after
+	// TODO: fix this with fancy custom unmarshaler probably
+	// t.Run("Add single new produce", func(t *testing.T) {
+	// 	newProduce := Produce{
+	// 		Name:        "Red Apple",
+	// 		ProduceCode: "RRRR-VV6T-75ZX-1RMR",
+	// 		UnitPrice:   3.44,
+	// 	}
 
-		request, _ := http.NewRequest(http.MethodPost, "/produce", nil)
+	// 	reqBody, _ := json.Marshal(newProduce)
+	// 	request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
+	// 	request.Header.Add("content-type", "application/json")
+	// 	response := httptest.NewRecorder()
+	// 	produceHandler.post(response, request)
+
+	// 	got := response.Code
+	// 	if got != http.StatusCreated {
+	// 		t.Errorf("got %d, want %d", got, http.StatusOK)
+	// 	}
+	// })
+
+	t.Run("Add produce that already exists", func(t *testing.T) {
+		newProduce := []Produce{
+			{Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
+		}
+
+		reqBody, _ := json.Marshal(newProduce)
+		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
+		request.Header.Add("content-type", "application/json")
 		response := httptest.NewRecorder()
-
 		produceHandler.post(response, request)
 
 		got := response.Code
@@ -48,6 +79,44 @@ func TestAddProduce(t *testing.T) {
 			t.Errorf("got %d, want %d", got, http.StatusOK)
 		}
 	})
+
+	t.Run("Add multiple new produce", func(t *testing.T) {
+		newProduce := []Produce{
+			{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+			{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 40.12},
+			{Name: "Purple Apple", ProduceCode: "PPPP-VV6T-75ZX-1RMR", UnitPrice: 43.99},
+		}
+
+		reqBody, _ := json.Marshal(newProduce)
+		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
+		request.Header.Add("content-type", "application/json")
+		response := httptest.NewRecorder()
+		produceHandler.post(response, request)
+
+		got := response.Code
+		if got != http.StatusCreated {
+			t.Errorf("got %d, want %d", got, http.StatusOK)
+		}
+	})
+
+	t.Run("Add items concurrently", func(t *testing.T) {
+		// TODO
+	})
+
+	t.Run("Add item with crazy JSON body", func(t *testing.T) {
+		// TODO
+	})
+}
+
+func TestDeleteProduce(t *testing.T) {
+	t.Run("Delete existing produce", func(t *testing.T) {
+		// TODO
+	})
+
+	t.Run("Delete non-existant produce", func(t *testing.T) {
+		// TODO
+	})
+
 }
 
 // Check and ensure that all elements exists in another slice and
