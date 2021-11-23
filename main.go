@@ -2,31 +2,60 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"sync"
 )
 
-func main() {
-	router := http.NewServeMux()
-	router.HandleFunc("/health", healthCheck)
-	router.HandleFunc("/produce", handleProduce)
-	log.Fatal(http.ListenAndServe(":6620", router))
-}
-
-func handleProduce(w http.ResponseWriter, r *http.Request) {
+func (h *produceHandlers) produce(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		json.NewEncoder(w).Encode(ProduceDB)
+		h.get(w, r)
+		return
+	case http.MethodPost:
+		h.post(w, r)
+		return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
 	}
+
 }
 
-func healthCheck(w http.ResponseWriter, r *http.Request) {
+func (h *produceHandlers) get(w http.ResponseWriter, r *http.Request) {
+	// Convert map to array of produce items.
+	produce := make([]Produce, len(h.store))
+
+	h.mu.Lock()
+	i := 0
+	for _, item := range h.store {
+		produce[i] = item
+		i++
+	}
+	h.mu.Unlock()
+
+	jsonBytes, err := json.Marshal(produce)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error())) // TODO
+	}
+
+	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Health endpoint hit.")
-	fmt.Println("Endpoint Hit: healthCheck")
+	w.Write(jsonBytes)
+}
+
+func (h *produceHandlers) post(w http.ResponseWriter, r *http.Request) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+}
+
+func main() {
+	produceHandlers := newProduceHandlers()
+
+	router := http.NewServeMux()
+	router.HandleFunc("/produce", produceHandlers.produce)
+	log.Fatal(http.ListenAndServe(":6620", router))
 }
 
 type Produce struct {
@@ -35,8 +64,18 @@ type Produce struct {
 	UnitPrice   float64 `json:"unitPrice"`
 }
 
-var ProduceDB = []Produce{
-	{Name: "Lettuce", ProduceCode: "e0b4-d9f6-4ddf-bc69", UnitPrice: 3.45},
-	{Name: "Tomatoe", ProduceCode: "e0A4-d9f6-4dqf-bc6t", UnitPrice: 4.78},
-	{Name: "Banana", ProduceCode: "e0b4-dpf6-4dgf-bc77", UnitPrice: 2.50},
+type produceHandlers struct {
+	mu    sync.Mutex
+	store map[string]Produce
+}
+
+func newProduceHandlers() *produceHandlers {
+	return &produceHandlers{
+		store: map[string]Produce{
+			"A12T-4GH7-QPL9-3N4M": {Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
+			"E5T6-9UI3-TH15-QR88": {Name: "Peach", ProduceCode: "E5T6-9UI3-TH15-QR88", UnitPrice: 2.99},
+			"YRT6-72AS-K736-L4AR": {Name: "Green Pepper", ProduceCode: "YRT6-72AS-K736-L4AR", UnitPrice: 0.79},
+			"TQ4C-VV6T-75ZX-1RMR": {Name: "Gala Apple", ProduceCode: "TQ4C-VV6T-75ZX-1RMR", UnitPrice: 3.59},
+		},
+	}
 }
