@@ -42,7 +42,6 @@ jobs:
           go tool cover "-func=coverage.out"
 
   docker:
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/head/dev' || github.ref == 'refs/head/master') && github.ref == 'refs/tags/v*'}}
     needs: test
     runs-on: ubuntu-latest
     name: Build and Push
