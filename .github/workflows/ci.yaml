@@ -3,14 +3,7 @@ name: Unit Test, Build, and Push
 on: 
   push:
     branches: 
-      - '*'
-    tags:
-      - '*'
-  pull_request:
-    branches: 
-      - '*'
-    tags:
-      - '*'
+      - 'master'
 
 jobs:
   test:
