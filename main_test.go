@@ -3,150 +3,161 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
+	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
+var initProduce = []Produce{
+	{Name: "Gala Apple", ProduceCode: "TQ4C-VV6T-75ZX-1RMR", UnitPrice: 3.59},
+	{Name: "Green Pepper", ProduceCode: "YRT6-72AS-K736-L4AR", UnitPrice: 0.79},
+	{Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
+	{Name: "Peach", ProduceCode: "E5T6-9UI3-TH15-QR88", UnitPrice: 2.99},
+}
+
 func TestGetProduce(t *testing.T) {
+	router := setupRouter()
 
-	produceHandler := newProduceHandlers()
+	t.Run("get all produce", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/produce", nil)
+		router.ServeHTTP(w, req)
 
-	initProduceDB := []Produce{}
-	for _, item := range produceHandler.store {
-		initProduceDB = append(initProduceDB, item)
-	}
+		expectedRes, _ := json.Marshal(initProduce)
 
-	t.Run("GET all produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/produce", nil)
-		response := httptest.NewRecorder()
-		produceHandler.get(response, request)
-
-		var got []Produce
-		json.Unmarshal(response.Body.Bytes(), &got)
-
-		if !isEqual(got, initProduceDB) {
-			t.Errorf("got %+v, want %+v", got, initProduceDB)
-		}
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, string(expectedRes), w.Body.String())
 	})
 
-	t.Run("GET produce by ID", func(t *testing.T) {
-		// TODO check for 200
+	t.Run("get produce by ID", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		router.ServeHTTP(w, req)
+
+		expectedRes, _ := json.Marshal(initProduce[0])
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, string(expectedRes), w.Body.String())
 	})
 
-	t.Run("GET produce with fake ID", func(t *testing.T) {
-		// TODO check for 404
+	t.Run("get produce by ID 404", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/produce/kalhefid", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 
-func TestAddProduce(t *testing.T) {
-	produceHandler := newProduceHandlers()
+func TestPostProduce(t *testing.T) {
+	router := setupRouter()
 
-	// TODO: fix this with fancy custom unmarshaler probably
-	// t.Run("Add single new produce", func(t *testing.T) {
-	// 	newProduce := Produce{
-	// 		Name:        "Red Apple",
-	// 		ProduceCode: "RRRR-VV6T-75ZX-1RMR",
-	// 		UnitPrice:   3.44,
-	// 	}
+	var newProduce = []Produce{
+		{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+		{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+		{Name: "Green Apple", ProduceCode: "GGGG-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+	}
 
-	// 	reqBody, _ := json.Marshal(newProduce)
-	// 	request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-	// 	request.Header.Add("content-type", "application/json")
-	// 	response := httptest.NewRecorder()
-	// 	produceHandler.post(response, request)
+	t.Run("add single new produce", func(t *testing.T) {
+		newSingle := make([]Produce, 1)
+		newSingle[0] = newProduce[0]
+		newProduce, _ := json.Marshal(newSingle)
 
-	// 	got := response.Code
-	// 	if got != http.StatusCreated {
-	// 		t.Errorf("got %d, want %d", got, http.StatusOK)
-	// 	}
-	// })
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		router.ServeHTTP(w, req)
 
-	t.Run("Add produce that already exists", func(t *testing.T) {
-		newProduce := []Produce{
-			{Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
-		}
-
-		reqBody, _ := json.Marshal(newProduce)
-		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-		request.Header.Add("content-type", "application/json")
-		response := httptest.NewRecorder()
-		produceHandler.post(response, request)
-
-		got := response.Code
-		if got != http.StatusCreated { // TODO: is this really what we want here?
-			t.Errorf("got %d, want %d", got, http.StatusCreated)
-		}
+		assert.Equal(t, http.StatusCreated, w.Code)
 	})
 
-	t.Run("Add multiple new produce", func(t *testing.T) {
-		newProduce := []Produce{
-			{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
-			{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 40.12},
-			{Name: "Purple Apple", ProduceCode: "PPPP-VV6T-75ZX-1RMR", UnitPrice: 43.99},
-		}
+	t.Run("add multiple new produce", func(t *testing.T) {
+		newProduce, _ := json.Marshal(newProduce)
 
-		reqBody, _ := json.Marshal(newProduce)
-		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-		request.Header.Add("content-type", "application/json")
-		response := httptest.NewRecorder()
-		produceHandler.post(response, request)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		router.ServeHTTP(w, req)
 
-		got := response.Code
-		if got != http.StatusCreated {
-			t.Errorf("got %d, want %d", got, http.StatusOK)
-		}
+		assert.Equal(t, http.StatusCreated, w.Code)
 	})
 
-	t.Run("Add items concurrently", func(t *testing.T) {
-		// TODO
+	t.Run("add new produce with invalid produceCode", func(t *testing.T) {
+		newSingle := make([]Produce, 1)
+		newSingle[0] = newProduce[0]
+		newSingle[0].ProduceCode = "imNotValid"
+		newProduce, _ := json.Marshal(newSingle)
+
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		router.ServeHTTP(w, req)
+
+		expectedBody := `{ "error": "invalid product code detected" }`
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, expectedBody, w.Body.String())
 	})
 
-	t.Run("Add item with crazy JSON body", func(t *testing.T) {
-		// TODO
+	t.Run("add new produce no body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/produce", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("produce can be added concurrently", func(t *testing.T) {
+		updates := 1000
+		store := newStoreHandlers()
+
+		var wg sync.WaitGroup
+		wg.Add(updates)
+
+		for i := 0; i < updates; i++ {
+			go func(n int) {
+				newProduce := make([]Produce, 1)
+				newProduce[0] = Produce{
+					ProduceCode: "TTTT-TTTT-TTTT-" + fmt.Sprintf("%04d", n),
+					Name:        "TestProduce " + fmt.Sprintf("%04d", n),
+					UnitPrice:   float64(n),
+				}
+				store.updateProduceInv(newProduce)
+				wg.Done()
+			}(i)
+		}
+		wg.Wait()
+
+		assert.Equal(t, 1004, len(store.getProduceInvSlice()))
 	})
 }
 
 func TestDeleteProduce(t *testing.T) {
-	produceHandler := newProduceHandlers()
+	router := setupRouter()
 
-	t.Run("Delete existing produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodDelete, "/produce/A12T-4GH7-QPL9-3N4M", nil)
-		response := httptest.NewRecorder()
+	t.Run("delete produce by id", func(t *testing.T) {
+		w := httptest.NewRecorder()
 
-		produceHandler.delete(response, request)
+		// delete produce
+		req, _ := http.NewRequest(http.MethodDelete, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		router.ServeHTTP(w, req)
 
-		if response.Code != http.StatusOK {
-			t.Errorf("got %d, want %d", response.Code, http.StatusOK)
-		}
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// verify produce was deleted
+		req2, _ := http.NewRequest(http.MethodGet, "/produce", nil)
+		router.ServeHTTP(w, req2)
+
+		expectedBody, _ := json.Marshal(initProduce[1:])
+		assert.JSONEq(t, string(expectedBody), w.Body.String())
 	})
 
-	t.Run("Delete non-existant produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodDelete, "/produce/non-existant-produce", nil)
-		response := httptest.NewRecorder()
+	t.Run("delete produce that does not exist", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodDelete, "/produce/this-does-note-xist", nil)
+		router.ServeHTTP(w, req)
 
-		produceHandler.delete(response, request)
-
-		if response.Code != http.StatusNotFound {
-			t.Errorf("got %d, want %d", response.Code, http.StatusNotFound)
-		}
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
-}
-
-// Check and ensure that all elements exists in another slice and
-// check if the length of the slices are equal.
-func isEqual(aa, bb []Produce) bool {
-	eqCtr := 0
-	for _, a := range aa {
-		for _, b := range bb {
-			if reflect.DeepEqual(a, b) {
-				eqCtr++
-			}
-		}
-	}
-	if eqCtr != len(bb) || len(aa) != len(bb) {
-		return false
-	}
-	return true
 }

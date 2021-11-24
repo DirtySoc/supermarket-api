@@ -4,5 +4,6 @@ COPY . .
 RUN go build -o supermarket-api
 FROM alpine:3.14.2
 COPY --from=builder /build/supermarket-api /dist/supermarket-api
+ENV GIN_MODE=release
 EXPOSE 6620
 CMD ["/dist/supermarket-api"]
