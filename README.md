@@ -28,7 +28,7 @@ docker run -d -p 6620:6620 dirtysoc/supermarket-api
 - [x] `GET /produce/{id}` returns details of a specific produce as JSON
 - [x] `POST /produce` add a produce item to the database*
 - [x] `POST /produce` add multiple produce items to the database
-- [ ] `DELETE /produce/{id}` removes produce from the database by produceCode
+- [x] `DELETE /produce/{id}` removes produce from the database by produceCode
 
 \* Note that all JSON body data must be a JSON array. For example, adding a single new produce item requires that the JSON body of the POST request be a JSON array with a single object in it.
 
