@@ -3,150 +3,236 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
+	"sync"
 	"testing"
+
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
 )
+
+var initProduce = []Produce{
+	{Name: "Gala Apple", ProduceCode: "TQ4C-VV6T-75ZX-1RMR", UnitPrice: 3.59},
+	{Name: "Green Pepper", ProduceCode: "YRT6-72AS-K736-L4AR", UnitPrice: 0.79},
+	{Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
+	{Name: "Peach", ProduceCode: "E5T6-9UI3-TH15-QR88", UnitPrice: 2.99},
+}
 
 func TestGetProduce(t *testing.T) {
 
-	produceHandler := newProduceHandlers()
-
-	initProduceDB := []Produce{}
-	for _, item := range produceHandler.store {
-		initProduceDB = append(initProduceDB, item)
+	storeHandler, err := newStoreHandlers()
+	if err != nil {
+		t.Fatalf("unable to initialize store handlers: %s", err.Error())
 	}
 
 	t.Run("GET all produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/produce", nil)
-		response := httptest.NewRecorder()
-		produceHandler.get(response, request)
-
-		var got []Produce
-		json.Unmarshal(response.Body.Bytes(), &got)
-
-		if !isEqual(got, initProduceDB) {
-			t.Errorf("got %+v, want %+v", got, initProduceDB)
+		req, err := http.NewRequest(http.MethodGet, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
 		}
+		rr := httptest.NewRecorder()
+		storeHandler.getProduce(rr, req)
+
+		expectedRes, _ := json.Marshal(initProduce)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.JSONEq(t, string(expectedRes), rr.Body.String())
 	})
 
 	t.Run("GET produce by ID", func(t *testing.T) {
-		// TODO check for 200
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		router := mux.NewRouter()
+		router.HandleFunc("/produce/{id}", storeHandler.getProduceByID).Methods(http.MethodGet)
+		router.ServeHTTP(rr, req)
+
+		expectedRes, _ := json.Marshal(initProduce[0])
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.JSONEq(t, string(expectedRes), rr.Body.String())
 	})
 
 	t.Run("GET produce with fake ID", func(t *testing.T) {
-		// TODO check for 404
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/produce/this-does-note-xist", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		router := mux.NewRouter()
+		router.HandleFunc("/produce/{id}", storeHandler.getProduceByID).Methods(http.MethodGet)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 	})
 }
 
-func TestAddProduce(t *testing.T) {
-	produceHandler := newProduceHandlers()
+func TestPostProduce(t *testing.T) {
+	storeHandler, err := newStoreHandlers()
+	if err != nil {
+		t.Fatalf("unable to initialize store handlers: %s", err.Error())
+	}
+	var newProduce = []Produce{
+		{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+		{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+		{Name: "Green Apple", ProduceCode: "GGGG-VV6T-75ZX-1RMR", UnitPrice: 3.44},
+	}
 
-	// TODO: fix this with fancy custom unmarshaler probably
-	// t.Run("Add single new produce", func(t *testing.T) {
-	// 	newProduce := Produce{
-	// 		Name:        "Red Apple",
-	// 		ProduceCode: "RRRR-VV6T-75ZX-1RMR",
-	// 		UnitPrice:   3.44,
-	// 	}
-
-	// 	reqBody, _ := json.Marshal(newProduce)
-	// 	request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-	// 	request.Header.Add("content-type", "application/json")
-	// 	response := httptest.NewRecorder()
-	// 	produceHandler.post(response, request)
-
-	// 	got := response.Code
-	// 	if got != http.StatusCreated {
-	// 		t.Errorf("got %d, want %d", got, http.StatusOK)
-	// 	}
-	// })
-
-	t.Run("Add produce that already exists", func(t *testing.T) {
-		newProduce := []Produce{
-			{Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
+	t.Run("add single new produce", func(t *testing.T) {
+		newSingle := make([]Produce, 1)
+		newSingle[0] = newProduce[0]
+		newProduce, err := json.Marshal(newSingle)
+		if err != nil {
+			t.Fatalf("error marshaling json %s", err.Error())
 		}
 
-		reqBody, _ := json.Marshal(newProduce)
-		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-		request.Header.Add("content-type", "application/json")
-		response := httptest.NewRecorder()
-		produceHandler.post(response, request)
-
-		got := response.Code
-		if got != http.StatusCreated { // TODO: is this really what we want here?
-			t.Errorf("got %d, want %d", got, http.StatusCreated)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
 		}
+		req.Header.Add("content-type", "application/json")
+		storeHandler.postProduce(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
-	t.Run("Add multiple new produce", func(t *testing.T) {
-		newProduce := []Produce{
-			{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
-			{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 40.12},
-			{Name: "Purple Apple", ProduceCode: "PPPP-VV6T-75ZX-1RMR", UnitPrice: 43.99},
+	t.Run("add multiple new produce", func(t *testing.T) {
+		newProduce, err := json.Marshal(newProduce)
+		if err != nil {
+			t.Fatalf("error marshaling json %s", err.Error())
 		}
 
-		reqBody, _ := json.Marshal(newProduce)
-		request, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(reqBody))
-		request.Header.Add("content-type", "application/json")
-		response := httptest.NewRecorder()
-		produceHandler.post(response, request)
-
-		got := response.Code
-		if got != http.StatusCreated {
-			t.Errorf("got %d, want %d", got, http.StatusOK)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
 		}
+		req.Header.Add("content-type", "application/json")
+		storeHandler.postProduce(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
-	t.Run("Add items concurrently", func(t *testing.T) {
-		// TODO
+	t.Run("add new produce with invalid produceCode", func(t *testing.T) {
+		newSingle := make([]Produce, 1)
+		newSingle[0] = newProduce[0]
+		newSingle[0].ProduceCode = "imNotValid"
+		newProduce, err := json.Marshal(newSingle)
+		if err != nil {
+			t.Fatalf("error marshaling json %s", err.Error())
+		}
+
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Add("content-type", "application/json")
+		storeHandler.postProduce(rr, req)
+
+		expectedBody := "invalid product code detected"
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, expectedBody, rr.Body.String())
 	})
 
-	t.Run("Add item with crazy JSON body", func(t *testing.T) {
-		// TODO
+	t.Run("add new produce nil body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Add("content-type", "application/json")
+		storeHandler.postProduce(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("add new produce empty body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader([]byte("")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Add("content-type", "application/json")
+		storeHandler.postProduce(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("produce can be added concurrently", func(t *testing.T) {
+		updates := 1000
+		if err != nil {
+			t.Fatalf("unable to initialize store handlers: %s", err.Error())
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(updates)
+
+		startlength := len(storeHandler.getProduceInvSlice())
+
+		for i := 0; i < updates; i++ {
+			go func(n int) {
+				newProduce := make([]Produce, 1)
+				newProduce[0] = Produce{
+					ProduceCode: "TTTT-TTTT-TTTT-" + fmt.Sprintf("%04d", n),
+					Name:        "TestProduce " + fmt.Sprintf("%04d", n),
+					UnitPrice:   float64(n),
+				}
+				storeHandler.updateProduceInv(newProduce)
+				wg.Done()
+			}(i)
+		}
+		wg.Wait()
+
+		assert.Equal(t, startlength+updates, len(storeHandler.getProduceInvSlice()))
 	})
 }
 
 func TestDeleteProduce(t *testing.T) {
-	produceHandler := newProduceHandlers()
+	router := setupRouter()
 
-	t.Run("Delete existing produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodDelete, "/produce/A12T-4GH7-QPL9-3N4M", nil)
-		response := httptest.NewRecorder()
+	t.Run("delete produce by id", func(t *testing.T) {
+		w := httptest.NewRecorder()
 
-		produceHandler.delete(response, request)
-
-		if response.Code != http.StatusOK {
-			t.Errorf("got %d, want %d", response.Code, http.StatusOK)
+		// delete produce
+		req, err := http.NewRequest(http.MethodDelete, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		if err != nil {
+			t.Fatal(err)
 		}
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// verify produce was deleted
+		req2, err := http.NewRequest(http.MethodGet, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(w, req2)
+
+		expectedBody, err := json.Marshal(initProduce[1:])
+		if err != nil {
+			t.Fatalf("error marshaling json %s", err.Error())
+		}
+		assert.JSONEq(t, string(expectedBody), w.Body.String())
 	})
 
-	t.Run("Delete non-existant produce", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodDelete, "/produce/non-existant-produce", nil)
-		response := httptest.NewRecorder()
-
-		produceHandler.delete(response, request)
-
-		if response.Code != http.StatusNotFound {
-			t.Errorf("got %d, want %d", response.Code, http.StatusNotFound)
+	t.Run("delete produce that does not exist", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodDelete, "/produce/this-does-note-xist", nil)
+		if err != nil {
+			t.Fatal(err)
 		}
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
-}
-
-// Check and ensure that all elements exists in another slice and
-// check if the length of the slices are equal.
-func isEqual(aa, bb []Produce) bool {
-	eqCtr := 0
-	for _, a := range aa {
-		for _, b := range bb {
-			if reflect.DeepEqual(a, b) {
-				eqCtr++
-			}
-		}
-	}
-	if eqCtr != len(bb) || len(aa) != len(bb) {
-		return false
-	}
-	return true
 }
