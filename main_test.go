@@ -22,7 +22,10 @@ var initProduce = []Produce{
 
 func TestGetProduce(t *testing.T) {
 
-	storeHandler := newStoreHandlers()
+	storeHandler, err := newStoreHandlers()
+	if err != nil {
+		t.Fatalf("unable to initialize store handlers: %s", err.Error())
+	}
 
 	t.Run("GET all produce", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/produce", nil)
@@ -163,7 +166,10 @@ func TestPostProduce(t *testing.T) {
 
 	t.Run("produce can be added concurrently", func(t *testing.T) {
 		updates := 1000
-		store := newStoreHandlers()
+		store, err := newStoreHandlers()
+		if err != nil {
+			t.Fatalf("unable to initialize store handlers: %s", err.Error())
+		}
 
 		var wg sync.WaitGroup
 		wg.Add(updates)

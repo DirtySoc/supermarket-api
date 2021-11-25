@@ -21,11 +21,16 @@ type Produce struct {
 }
 
 type storeHandlers struct {
-	produceInvMu sync.Mutex
-	produceInv   map[string]Produce
+	produceInvMu     sync.Mutex
+	produceInv       map[string]Produce
+	produceCodeRegex *regexp.Regexp
 }
 
-func newStoreHandlers() *storeHandlers {
+func newStoreHandlers() (*storeHandlers, error) {
+	prodCodeRegexp, err := regexp.Compile("^(?:[a-zA-Z0-9]{4}-){3}[a-zA-Z0-9]{4}$")
+	if err != nil {
+		return nil, err
+	}
 	return &storeHandlers{
 		produceInv: map[string]Produce{
 			"A12T-4GH7-QPL9-3N4M": {Name: "Lettuce", ProduceCode: "A12T-4GH7-QPL9-3N4M", UnitPrice: 3.46},
@@ -33,7 +38,8 @@ func newStoreHandlers() *storeHandlers {
 			"YRT6-72AS-K736-L4AR": {Name: "Green Pepper", ProduceCode: "YRT6-72AS-K736-L4AR", UnitPrice: 0.79},
 			"TQ4C-VV6T-75ZX-1RMR": {Name: "Gala Apple", ProduceCode: "TQ4C-VV6T-75ZX-1RMR", UnitPrice: 3.59},
 		},
-	}
+		produceCodeRegex: prodCodeRegexp,
+	}, nil
 }
 
 // getProduceInvSlice returns a slice containing all of
@@ -69,9 +75,8 @@ func (h *storeHandlers) updateProduceInv(newProduce []Produce) {
 // returns an error if invalid product IDs are detected in []Produce
 // todo handle error from regexp.Compile gracefully
 func (h *storeHandlers) validateProduceIDs(p []Produce) error {
-	prodCodeRegexp, _ := regexp.Compile("^(?:[a-zA-Z0-9]{4}-){3}[a-zA-Z0-9]{4}$")
 	for _, item := range p {
-		matched := prodCodeRegexp.MatchString(item.ProduceCode)
+		matched := h.produceCodeRegex.MatchString(item.ProduceCode)
 		if !matched {
 			return fmt.Errorf("invalid product code detected")
 		}
@@ -186,7 +191,10 @@ func (h *storeHandlers) deleteProduceByID(w http.ResponseWriter, r *http.Request
 }
 
 func setupRouter() *mux.Router {
-	storeHandlers := newStoreHandlers()
+	storeHandlers, err := newStoreHandlers()
+	if err != nil {
+		log.Fatalf("unable to initialize store handlers: %s", err.Error())
+	}
 
 	r := mux.NewRouter()
 	r.HandleFunc("/produce", storeHandlers.getProduce).Methods(http.MethodGet)
