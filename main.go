@@ -207,6 +207,5 @@ func setupRouter() *mux.Router {
 
 func main() {
 	r := setupRouter()
-	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(":6620", r))
 }
