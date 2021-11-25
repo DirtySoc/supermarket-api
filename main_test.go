@@ -24,32 +24,47 @@ func TestGetProduce(t *testing.T) {
 
 	t.Run("get all produce", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/produce", nil)
+		req, err := http.NewRequest(http.MethodGet, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 		router.ServeHTTP(w, req)
 
-		expectedRes, _ := json.Marshal(initProduce)
+		expectedRes, err := json.Marshal(initProduce)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.JSONEq(t, string(expectedRes), w.Body.String())
 	})
 
 	t.Run("get produce by ID", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		expectedRes, _ := json.Marshal(initProduce[0])
+		expectedRes, err := json.Marshal(initProduce[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.JSONEq(t, string(expectedRes), w.Body.String())
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.JSONEq(t, string(expectedRes), rr.Body.String())
 	})
 
 	t.Run("get produce by ID 404", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodGet, "/produce/kalhefid", nil)
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodGet, "/produce/kalhefid", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 	})
 }
 
@@ -65,23 +80,35 @@ func TestPostProduce(t *testing.T) {
 	t.Run("add single new produce", func(t *testing.T) {
 		newSingle := make([]Produce, 1)
 		newSingle[0] = newProduce[0]
-		newProduce, _ := json.Marshal(newSingle)
+		newProduce, err := json.Marshal(newSingle)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
 	t.Run("add multiple new produce", func(t *testing.T) {
-		newProduce, _ := json.Marshal(newProduce)
+		newProduce, err := json.Marshal(newProduce)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
 	t.Run("add new produce with invalid produceCode", func(t *testing.T) {
@@ -90,27 +117,49 @@ func TestPostProduce(t *testing.T) {
 		newSingle[0].ProduceCode = "imNotValid"
 		newProduce, _ := json.Marshal(newSingle)
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
 		expectedBody := `{ "error": "invalid product code detected" }`
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.JSONEq(t, expectedBody, w.Body.String())
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.JSONEq(t, expectedBody, rr.Body.String())
 	})
 
-	t.Run("add new produce no body", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodPost, "/produce", nil)
-		router.ServeHTTP(w, req)
+	t.Run("add new produce nil body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Add("content-type", "application/json")
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("add new produce empty body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader([]byte("")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Add("content-type", "application/json")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("produce can be added concurrently", func(t *testing.T) {
-		updates := 1000
-		store := newStoreHandlers()
+		updates := 9999
+		store, err := newStoreHandlers()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		var wg sync.WaitGroup
 		wg.Add(updates)
@@ -129,7 +178,7 @@ func TestPostProduce(t *testing.T) {
 		}
 		wg.Wait()
 
-		assert.Equal(t, 1004, len(store.getProduceInvSlice()))
+		assert.Equal(t, updates+4, len(store.getProduceInvSlice()))
 	})
 }
 
@@ -137,27 +186,36 @@ func TestDeleteProduce(t *testing.T) {
 	router := setupRouter()
 
 	t.Run("delete produce by id", func(t *testing.T) {
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 
 		// delete produce
-		req, _ := http.NewRequest(http.MethodDelete, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
-		router.ServeHTTP(w, req)
+		req, err := http.NewRequest(http.MethodDelete, "/produce/TQ4C-VV6T-75ZX-1RMR", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
 
 		// verify produce was deleted
-		req2, _ := http.NewRequest(http.MethodGet, "/produce", nil)
-		router.ServeHTTP(w, req2)
+		req2, err := http.NewRequest(http.MethodGet, "/produce", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req2)
 
 		expectedBody, _ := json.Marshal(initProduce[1:])
-		assert.JSONEq(t, string(expectedBody), w.Body.String())
+		assert.JSONEq(t, string(expectedBody), rr.Body.String())
 	})
 
 	t.Run("delete produce that does not exist", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest(http.MethodDelete, "/produce/this-does-note-xist", nil)
-		router.ServeHTTP(w, req)
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest(http.MethodDelete, "/produce/this-does-note-xist", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 }
