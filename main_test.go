@@ -74,7 +74,10 @@ func TestGetProduce(t *testing.T) {
 }
 
 func TestPostProduce(t *testing.T) {
-	router := setupRouter()
+	storeHandler, err := newStoreHandlers()
+	if err != nil {
+		t.Fatalf("unable to initialize store handlers: %s", err.Error())
+	}
 	var newProduce = []Produce{
 		{Name: "Red Apple", ProduceCode: "RRRR-VV6T-75ZX-1RMR", UnitPrice: 3.44},
 		{Name: "Blue Apple", ProduceCode: "BBBB-VV6T-75ZX-1RMR", UnitPrice: 3.44},
@@ -89,15 +92,15 @@ func TestPostProduce(t *testing.T) {
 			t.Fatalf("error marshaling json %s", err.Error())
 		}
 
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Add("content-type", "application/json")
-		router.ServeHTTP(w, req)
+		storeHandler.postProduce(rr, req)
 
-		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
 	t.Run("add multiple new produce", func(t *testing.T) {
@@ -106,15 +109,15 @@ func TestPostProduce(t *testing.T) {
 			t.Fatalf("error marshaling json %s", err.Error())
 		}
 
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Add("content-type", "application/json")
-		router.ServeHTTP(w, req)
+		storeHandler.postProduce(rr, req)
 
-		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
 	t.Run("add new produce with invalid produceCode", func(t *testing.T) {
@@ -126,53 +129,54 @@ func TestPostProduce(t *testing.T) {
 			t.Fatalf("error marshaling json %s", err.Error())
 		}
 
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader(newProduce))
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Add("content-type", "application/json")
-		router.ServeHTTP(w, req)
+		storeHandler.postProduce(rr, req)
 
 		expectedBody := "invalid product code detected"
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Equal(t, expectedBody, w.Body.String())
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, expectedBody, rr.Body.String())
 	})
 
 	t.Run("add new produce nil body", func(t *testing.T) {
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodPost, "/produce", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Add("content-type", "application/json")
-		router.ServeHTTP(w, req)
+		storeHandler.postProduce(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("add new produce empty body", func(t *testing.T) {
-		w := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 		req, err := http.NewRequest(http.MethodPost, "/produce", bytes.NewReader([]byte("")))
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Add("content-type", "application/json")
-		router.ServeHTTP(w, req)
+		storeHandler.postProduce(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("produce can be added concurrently", func(t *testing.T) {
 		updates := 1000
-		store, err := newStoreHandlers()
 		if err != nil {
 			t.Fatalf("unable to initialize store handlers: %s", err.Error())
 		}
 
 		var wg sync.WaitGroup
 		wg.Add(updates)
+
+		startlength := len(storeHandler.getProduceInvSlice())
 
 		for i := 0; i < updates; i++ {
 			go func(n int) {
@@ -182,13 +186,13 @@ func TestPostProduce(t *testing.T) {
 					Name:        "TestProduce " + fmt.Sprintf("%04d", n),
 					UnitPrice:   float64(n),
 				}
-				store.updateProduceInv(newProduce)
+				storeHandler.updateProduceInv(newProduce)
 				wg.Done()
 			}(i)
 		}
 		wg.Wait()
 
-		assert.Equal(t, 1004, len(store.getProduceInvSlice()))
+		assert.Equal(t, startlength+updates, len(storeHandler.getProduceInvSlice()))
 	})
 }
 
